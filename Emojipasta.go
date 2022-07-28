@@ -1,23 +1,44 @@
-package main
+package emojipasta
 
 import (
-	"fmt"
-	"github.com/xerosic/emojipasta/generator"
+	_ "embed"
+	"encoding/json"
 	"math/rand"
-	"time"
+	"regexp"
+	"strings"
 )
 
-func Generate(phrase string, config generator.EmojipastaConfig) string{
-	rand.Seed(time.Now().UnixNano())
-	splitWords := generator.SplitWordByDelimiter(phrase, config.WordDelimiter)
-	return generator.AddEmojisToSlice(splitWords, config.MaxEmojisPerWord, config.FixedEmojiNumber)
+var (
+	//go:embed edb.prebuilt.json
+	_jsonFile      []byte
+	_emojiDB       map[string][]string
+	_matchBrackets = regexp.MustCompile("[\\[\\]]")
+)
+
+func init() {
+	if err := json.Unmarshal(_jsonFile, &_emojiDB); err != nil {
+		panic(err)
+	}
 }
 
-func main() {
-	cfg := generator.EmojipastaConfig{
-		WordDelimiter:    " ",
-		MaxEmojisPerWord: 2,
-		FixedEmojiNumber: false,
+func Generate(input []string, maxEmojisPerWord int, fixedEmojiNumber bool) (output string) {
+	emojisPerWord := maxEmojisPerWord
+	for k, word := range input {
+		if k > 0 {
+			output += " "
+		}
+		output += word
+
+		if !fixedEmojiNumber {
+			emojisPerWord = rand.Intn(maxEmojisPerWord)
+		}
+
+		if emojis, ok := _emojiDB[strings.ToLower(word)]; ok {
+			for i := 0; i <= emojisPerWord; i++ {
+				output += emojis[rand.Intn(len(emojis))]
+			}
+		}
 	}
-	fmt.Println(Generate("This library allows you to create emojipastas like this one", cfg))
+
+	return _matchBrackets.ReplaceAllString(output, "")
 }
